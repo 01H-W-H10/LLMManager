@@ -355,3 +355,13 @@ A:
 SpeziLLMLocal: Local LLM is being initialized
 SpeziLLMLocal: Local LLM file could not be opened, indicating that the model file doesn't exist
 ❌ 응답 생성 오류: LLM file not found.
+
+
+
+
+
+
+
+
+And if this method is wrong and we should use the model written in your LLMlocalModel, please let me know how to use it. It seems to be powered by a hub id but I don't know the exact way. I would really appreciate it if you could show me an example of how to use it correctly
+thank you
