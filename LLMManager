@@ -1,0 +1,124 @@
+// LLMManager.swift의 핵심 부분
+func loadModel() async {
+    #if targetEnvironment(simulator)
+    print("시뮬레이터: 모델 로드 건너뜀")
+    return
+    #endif
+    
+    do {
+        // 모델 파일 경로 설정
+        let modelsPath = getSaveDirectoryURL()
+        let modelFileName = "\(selectedModel.fileName)"
+        let modelFilePath = modelsPath.appendingPathComponent(modelFileName)
+        
+        print("📂 모델 파일 경로: \(modelFilePath.path)")
+        
+        // 파일 존재 확인 및 크기 출력
+        if let fileSize = try? FileManager.default.attributesOfItem(atPath: modelFilePath.path)[.size] as? UInt64 {
+            print("📊 모델 파일 크기: \(fileSize) 바이트")
+            
+            // 파일 읽기 테스트
+            if let fileHandle = FileHandle(forReadingAtPath: modelFilePath.path) {
+                let sampleData = fileHandle.readData(ofLength: 1024)
+                print("✅ 파일 읽기 성공: 총 \(fileSize) 바이트, 샘플 \(sampleData.count) 바이트")
+                fileHandle.closeFile()
+            } else {
+                print("❌ 파일을 읽을 수 없습니다!")
+            }
+        } else {
+            print("❌ 파일이 존재하지 않거나 접근할 수 없습니다!")
+        }
+        
+        // 파일 보호 속성 제거
+        try? modelFilePath.removeProtection()
+        print("✅ 파일 보호 속성 제거 완료")
+        
+        // 모델 구성
+        print("📄 모델 절대 경로: \(modelFilePath.path)")
+        let localModel: LLMLocalModel = .custom(id: modelFilePath.path)
+        let schema = LLMLocalSchema(model: localModel)
+        
+        print("✅ 스키마 내용: \(schema)")
+        llmSession = try runner(with: schema)
+        print("📝 생성된 세션 정보: \(String(describing: llmSession))")
+        modelLoaded = true
+        print("🚀 모델 로드 완료! modelLoaded = \(modelLoaded)")
+    } catch {
+        print("❌ 모델 로드 실패: \(error.localizedDescription)")
+        modelLoaded = false
+        downloadError = "모델 로드 실패: \(error.localizedDescription)"
+    }
+}
+
+// 앱 내 다운로드 구현 (AppModel.swift에서)
+func downloadModel() {
+    downloadTask?.cancel()
+    
+    let modelId = "tinyllama-1.1b-chat-v1.0.Q4_0"
+    let modelURL = URL(string: "https://huggingface.co/TheBloke/TinyLlama-1.1B-Chat-v1.0-GGUF/resolve/main/tinyllama-1.1b-chat-v1.0.Q4_0.gguf")!
+    
+    isDownloading = true
+    downloadError = nil
+    downloadProgress = 0
+    
+    print("\n=== 모델 다운로드 시작 ===")
+    print("📥 다운로드 URL: \(modelURL)")
+    
+    // 다운로드 디렉토리 생성
+    downloadTask = Task {
+        do {
+            let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+            let downloadDirectory = documentsPath.appendingPathComponent("LLMDownloads", isDirectory: true)
+            
+            print("📂 다운로드 디렉토리: \(downloadDirectory.path)")
+            
+            // 디렉토리 생성
+            if !FileManager.default.fileExists(atPath: downloadDirectory.path) {
+                try FileManager.default.createDirectory(at: downloadDirectory,
+                                                     withIntermediateDirectories: true,
+                                                     attributes: nil)
+                print("✅ 다운로드 디렉토리 생성됨")
+            }
+            
+            let modelPath = downloadDirectory.appendingPathComponent(modelId)
+            print("📄 모델 파일 저장 경로: \(modelPath.path)")
+            
+            // ... 다운로드 로직 및 파일 저장 ...
+        }
+    }
+}
+
+// SpeziLLMTest4App.swift의, 앱 초기화 로직
+@main
+struct SpeziLLMTest4App: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var appModel: AppModel
+    
+    init() {
+        _appModel = StateObject(wrappedValue: AppModel(manager: AppDelegate.shared))
+    }
+    
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+                .environmentObject(appModel)
+                .task {
+                    appModel.configure()
+                }
+                .spezi(appDelegate)
+        }
+    }
+}
+
+// AppDelegate 구성
+class AppDelegate: SpeziAppDelegate {
+    static let shared = LLMManager()
+    
+    override var configuration: Configuration {
+        Configuration(standard: Self.shared) {
+            LLMRunner {
+                LLMLocalPlatform()
+            }
+        }
+    }
+}
